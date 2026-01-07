@@ -6,10 +6,6 @@ on:
     paths:
       - 'infrastructure/**'
 
-permissions:
-  pull-requests: write # PRへのコメントに必要
-  contents: read
-
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -19,6 +15,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
+          # ここを極限までシンプルにします
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
@@ -31,22 +28,5 @@ jobs:
         working-directory: ./infrastructure
 
       - name: Terraform Plan
-        id: plan
-        run: terraform plan -no-color
+        run: terraform plan
         working-directory: ./infrastructure
-
-      - name: Post Plan to Comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const output = `#### Terraform Plan Result 📖
-            \`\`\`
-            ${{ steps.plan.outputs.stdout }}
-            \`\`\`
-            `;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
