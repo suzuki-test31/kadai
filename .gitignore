@@ -1,0 +1,15 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+# 認証情報（絶対にコミットしない）
+.envrc
+.env
+terraform.tfvars
+*.tfvars
+
+# SSH鍵
+*.pem
+*.key

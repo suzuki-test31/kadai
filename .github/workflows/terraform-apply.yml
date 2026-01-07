@@ -1,0 +1,41 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/**.tf'
+      - 'backend/**.tf'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        working_dir: [infrastructure, backend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.working_dir }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::463470960192:role/GitHubActionsRole
+          aws-region: us-west-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
