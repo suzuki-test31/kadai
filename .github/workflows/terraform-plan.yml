@@ -6,6 +6,9 @@ on:
     paths:
       - 'infrastructure/**'
 
+permissions:
+  pull-requests: write
+
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -15,7 +18,6 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # ここを極限までシンプルにします
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
@@ -28,5 +30,37 @@ jobs:
         working-directory: ./infrastructure
 
       - name: Terraform Plan
-        run: terraform plan
+        id: plan
+        run: terraform plan -no-color -out=tfplan
         working-directory: ./infrastructure
+        continue-on-error: true
+
+      - name: Terraform Show
+        id: show
+        run: terraform show -no-color tfplan
+        working-directory: ./infrastructure
+
+      - name: Post Plan
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `## Terraform Plan
+            
+            <details>
+            <summary>Show Plan</summary>
+            
+            \`\`\`
+            ${{ steps.show.outputs.stdout }}
+            \`\`\`
+            
+            </details>
+            
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
