@@ -1,10 +1,10 @@
 resource "aws_ecr_repository" "app" {
-  name                 = "handson-app"
+  name                 = "kadai-app-repo"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
 
   tags = {
-    Name = "handson-app"
+    Name = "kadai-app-repo"
   }
 }
 
