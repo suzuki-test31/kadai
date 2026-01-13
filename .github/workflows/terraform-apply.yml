@@ -1,37 +1,64 @@
-name: Terraform Apply
+name: Terraform Apply & Deploy
 
 on:
   push:
     branches: [main]
     paths:
       - 'infrastructure/**.tf'
+      - 'Dockerfile'
+      - 'index.html'
 
 permissions:
   id-token: write
   contents: read
 
-defaults:
-  run:
-    working-directory: infrastructure
+env:
+  AWS_REGION: us-west-2
+  ECR_REPOSITORY: kadai-app-repo
+  AWS_ACCOUNT_ID: "463470960192"
 
 jobs:
-  apply:
+  apply-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::463470960192:role/GitHubActionsRole
-          aws-region: us-west-2
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Init
-        run: terraform init -upgrade
-
+      # --- インフラ更新 ---
+      - uses: hashicorp/setup-terraform@v3
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        working-directory: infrastructure
+        run: |
+          terraform init -upgrade
+          terraform apply -auto-approve
+
+      # --- アプリ更新 (ECR Push) ---
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Docker
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # --- デプロイ実行 (SSM) ---
+      - name: Deploy via SSM
+        run: |
+          aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:Name,Values=tf-handson-web-server" \
+            --region ${{ env.AWS_REGION }} \
+            --parameters 'commands=[
+              "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com",
+              "docker pull ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest",
+              "docker stop app || true",
+              "docker rm app || true",
+              "docker run -d -p 80:80 --name app ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest"
+            ]'
