@@ -16,7 +16,7 @@ resource "aws_vpc" "handson" {
 resource "aws_subnet" "public_a" {
   vpc_id            = aws_vpc.handson.id
   cidr_block        = "10.0.1.0/24"
-  availability_zone = var.az_a
+  availability_zone = "us-west-2a"  # 直接指定
   tags = {
     Name = "public-2a"
   }
@@ -25,7 +25,7 @@ resource "aws_subnet" "public_a" {
 resource "aws_subnet" "public_b" {
   vpc_id            = aws_vpc.handson.id
   cidr_block        = "10.0.2.0/24"
-  availability_zone = var.az_b
+  availability_zone = "us-west-2b"  # 直接指定
   tags = {
     Name = "public-2b"
   }
@@ -34,7 +34,7 @@ resource "aws_subnet" "public_b" {
 resource "aws_subnet" "private_a" {
   vpc_id            = aws_vpc.handson.id
   cidr_block        = "10.0.11.0/24"
-  availability_zone = var.az_a
+  availability_zone = "us-west-2a"  # 直接指定
   tags = {
     Name = "private-2a"
   }
@@ -43,7 +43,7 @@ resource "aws_subnet" "private_a" {
 resource "aws_subnet" "private_b" {
   vpc_id            = aws_vpc.handson.id
   cidr_block        = "10.0.12.0/24"
-  availability_zone = var.az_b
+  availability_zone = "us-west-2b"  # 直接指定
   tags = {
     Name = "private-2b"
   }
@@ -52,7 +52,7 @@ resource "aws_subnet" "private_b" {
 resource "aws_subnet" "db_a" {
   vpc_id            = aws_vpc.handson.id
   cidr_block        = "10.0.21.0/24"
-  availability_zone = var.az_a
+  availability_zone = "us-west-2a"  # 直接指定
   tags = {
     Name = "db-2a"
   }
@@ -61,12 +61,13 @@ resource "aws_subnet" "db_a" {
 resource "aws_subnet" "db_b" {
   vpc_id            = aws_vpc.handson.id
   cidr_block        = "10.0.22.0/24"
-  availability_zone = var.az_b
+  availability_zone = "us-west-2b"  # 直接指定
   tags = {
     Name = "db-2b"
   }
 }
 
+# (これ以降の Internet Gateway, NAT Gateway, Route Table は変更なしでOK)
 #================================================
 # Internet Gateway
 #================================================
@@ -81,7 +82,7 @@ resource "aws_internet_gateway" "handson" {
 # NAT Gateway
 #================================================
 resource "aws_eip" "nat_a" {
-
+  domain     = "vpc" # eipにはdomain指定を推奨(以前のdepends_onより確実)
   depends_on = [aws_internet_gateway.handson]
 }
 
@@ -94,6 +95,7 @@ resource "aws_nat_gateway" "nat_a" {
 }
 
 resource "aws_eip" "nat_b" {
+  domain     = "vpc"
   depends_on = [aws_internet_gateway.handson]
 }
 
