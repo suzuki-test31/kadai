@@ -1,22 +1,37 @@
 name: Terraform Apply
+
 on:
   push:
-    branches: [ main ]
-    paths: ["infrastructure/**"]
+    branches: [main]
+    paths:
+      - 'infrastructure/**.tf'
 
 permissions:
+  id-token: write
   contents: read
-  id-token: write # Required for OIDC
+
+defaults:
+  run:
+    working-directory: infrastructure
 
 jobs:
   apply:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::463470960192:role/GitHubActionsRole
           aws-region: us-west-2
-      - uses: hashicorp/setup-terraform@v3
-      - run: terraform init && terraform apply -auto-approve
-        working-directory: ./infrastructure
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve

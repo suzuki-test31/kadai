@@ -1,31 +1,20 @@
-#================================================
-# Provider
-#================================================
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+
+  backend "s3" {
+    bucket         = "tfstate-handson-b533f440"  # 出力された値
+    key            = "infrastructure/terraform.tfstate"
+    region         = "us-west-2"
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
+  }
+}
+
 provider "aws" {
-  region = var.region
+  region = "us-west-2"
 }
-
-#================================================
-# Variables
-#================================================
-variable "project" {
-  type    = string
-  default = "kadai"
-}
-
-variable "region" {
-  type    = string
-  default = "us-west-2"
-}
-
-variable "az_a" {
-  type    = string
-  default = "us-west-2a"
-}
-
-variable "az_b" {
-  type    = string
-  default = "us-west-2b"
-}
-
-# CICD Demo Trigger
