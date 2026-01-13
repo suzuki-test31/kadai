@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'infrastructure/**.tf'
+      - 'infrastructure/**'  # .tf だけでなく、ロックファイルなどの変更も検知するようにする
 
 permissions:
   id-token: write
