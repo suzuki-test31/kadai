@@ -1,4 +1,4 @@
-name: Docker Build and Push
+name: CI/CD Pipeline
 
 on:
   push:
@@ -6,18 +6,61 @@ on:
     paths:
       - 'Dockerfile'
       - 'index.html'
+      - '**.tf'  # Terraform関連ファイルの変更も検知
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.tf'
 
 permissions:
   id-token: write
   contents: read
+  pull-requests: write # Plan結果のコメント投稿に必要
 
 env:
   AWS_REGION: us-west-2
-  ECR_REPOSITORY: handson-app
-  AWS_ACCOUNT_ID: "463470960192"  
+  ECR_REPOSITORY: kadai-app-repo
+  AWS_ACCOUNT_ID: "463470960192"
 
 jobs:
-  build:
+  # --- 要件1: PR時に Terraform Plan をコメント ---
+  terraform-plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform init
+          terraform plan -no-color
+
+      - name: Post Plan Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `#### Terraform Plan 📖
+            \`\`\`\n
+            ${{ steps.plan.outputs.stdout }}
+            \`\`\`
+            `;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  # --- 要件2 & 3: mainマージ時に Apply と Dockerビルド/デプロイを実行 ---
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,6 +72,14 @@ jobs:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ env.AWS_REGION }}
 
+      # 1. Terraform Apply (リポジトリ作成など)
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform Apply
+        run: |
+          terraform init
+          terraform apply -auto-approve
+
+      # 2. Docker Build and Push
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -39,18 +90,19 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "Image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
-        - name: Deploy to EC2 via SSM
+      # 3. Deploy to EC2 via SSM (修正済み)
+      - name: Deploy to EC2 via SSM
         run: |
           aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --targets "Key=tag:Name,Values=tf-handson-web-server" \
-            --region us-west-2 \
+            --region ${{ env.AWS_REGION }} \
             --comment "Deploying latest Docker image" \
             --parameters 'commands=[
-              "aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.us-west-2.amazonaws.com",
+              "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com",
               "docker stop app || true",
               "docker rm app || true",
-              "docker pull ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.us-west-2.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest",
-              "docker run -d -p 80:80 --name app ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.us-west-2.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest"
+              "docker pull ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest",
+              "docker run -d -p 80:80 --name app ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest"
+            ]'
