@@ -10,7 +10,7 @@ permissions:
 
 env:
   AWS_REGION: us-west-2
-  ECR_REPOSITORY: handson-app
+  ECR_REPOSITORY: kadai-app-repo
   AWS_ACCOUNT_ID: "463470960192"
 
 jobs:
