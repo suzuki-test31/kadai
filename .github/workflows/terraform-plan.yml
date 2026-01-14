@@ -31,13 +31,14 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init & Plan (Perfect Fix)
+      - name: Terraform Init & Plan (Nuclear Fix)
         id: plan
         run: |
-          # フォルダ移動後の場所でロックファイルを確実に消去
+          # 1. 呪いの原因（古いキャッシュとロックファイル）を物理的に根こそぎ削除
+          rm -rf .terraform
           rm -f .terraform.lock.hcl
           
-          # 強制アップグレードで初期化
+          # 2. まっさらな状態で最新の 5.x 系を再取得
           terraform init -upgrade
           terraform plan -no-color
 
