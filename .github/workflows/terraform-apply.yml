@@ -1,11 +1,8 @@
-name: Docker Build and Push
+name: Terraform Apply & Deploy
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'Dockerfile'
-      - 'index.html'
 
 permissions:
   id-token: write
@@ -17,7 +14,7 @@ env:
   AWS_ACCOUNT_ID: "463470960192"
 
 jobs:
-  build:
+  terraform-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,17 +26,21 @@ jobs:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Terraform Apply (Perfect Fix)
+        working-directory: infrastructure
+        run: |
+          rm -f .terraform.lock.hcl     # 矛盾の元凶を削除
+          terraform init -upgrade        # 強制アップグレードで初期化
+          terraform apply -auto-approve
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push Docker image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "Image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
+          docker build -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest .
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
 
       - name: Deploy to EC2 via SSM
         run: |
@@ -47,7 +48,6 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --targets "Key=tag:Name,Values=tf-handson-web-server" \
             --region ${{ env.AWS_REGION }} \
-            --comment "Deploying latest Docker image" \
             --parameters 'commands=[
               "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com",
               "docker stop app || true",

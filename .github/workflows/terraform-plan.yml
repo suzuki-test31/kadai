@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'infrastructure/**'  # .tf だけでなく、ロックファイルなどの変更も検知するようにする
+      - 'infrastructure/**'
 
 permissions:
   id-token: write
@@ -18,7 +18,9 @@ jobs:
       run:
         working-directory: infrastructure
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -26,11 +28,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-2
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init & Plan
+      - name: Terraform Init & Plan (Nuclear Fix)
         id: plan
         run: |
+          # 1. 呪いの原因（古いキャッシュとロックファイル）を物理的に根こそぎ削除
+          rm -rf .terraform
+          rm -f .terraform.lock.hcl
+          
+          # 2. まっさらな状態で最新の 5.x 系を再取得
           terraform init -upgrade
           terraform plan -no-color
 
@@ -39,7 +47,9 @@ jobs:
         with:
           script: |
             const output = `## Terraform Plan 📖
-            \`\`\`
+            #### Result: \`${{ steps.plan.outcome }}\`
+            
+            \`\`\`terraform
             ${{ steps.plan.outputs.stdout }}
             \`\`\`
             `;
