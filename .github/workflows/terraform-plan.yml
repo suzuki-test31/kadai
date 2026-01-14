@@ -31,8 +31,9 @@ jobs:
       - name: Terraform Init & Plan
         id: plan
         run: |
-          terraform init -upgrade
-          terraform plan -no-color
+           rm -f .terraform.lock.hcl      # エラーの元凶（古いロックファイル）を削除
+           terraform init -upgrade         # 今の設定に合わせて再初期化
+           terraform plan -no-color
 
       - name: Comment Plan on PR
         uses: actions/github-script@v7
