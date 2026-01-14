@@ -20,17 +20,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 今登録した Secrets を使って AWS にログインします
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # 【最重要】Terraform をインストールするステップを追加
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # 順番を修正：インストールしてから初期化を実行
       - name: Terraform Apply (Perfect Fix)
         working-directory: infrastructure
         run: |
-          rm -f .terraform.lock.hcl     # 矛盾の元凶を削除
-          terraform init -upgrade        # 強制アップグレードで初期化
+          rm -rf .terraform
+          rm -f .terraform.lock.hcl
+          terraform init -upgrade
           terraform apply -auto-approve
 
       - name: Login to Amazon ECR
