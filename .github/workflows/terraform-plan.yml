@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'infrastructure/**'  # .tf だけでなく、ロックファイルなどの変更も検知するようにする
+      - 'infrastructure/**'
 
 permissions:
   id-token: write
@@ -18,7 +18,9 @@ jobs:
       run:
         working-directory: infrastructure
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -26,21 +28,27 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-2
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init & Plan
+      - name: Terraform Init & Plan (Perfect Fix)
         id: plan
         run: |
-           rm -f .terraform.lock.hcl      # エラーの元凶（古いロックファイル）を削除
-           terraform init -upgrade         # 今の設定に合わせて再初期化
-           terraform plan -no-color
+          # フォルダ移動後の場所でロックファイルを確実に消去
+          rm -f .terraform.lock.hcl
+          
+          # 強制アップグレードで初期化
+          terraform init -upgrade
+          terraform plan -no-color
 
       - name: Comment Plan on PR
         uses: actions/github-script@v7
         with:
           script: |
             const output = `## Terraform Plan 📖
-            \`\`\`
+            #### Result: \`${{ steps.plan.outcome }}\`
+            
+            \`\`\`terraform
             ${{ steps.plan.outputs.stdout }}
             \`\`\`
             `;
