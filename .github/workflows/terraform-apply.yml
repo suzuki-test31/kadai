@@ -1,10 +1,9 @@
-name: Terraform Apply & Deploy
+name: Docker Build and Push
 
 on:
   push:
     branches: [main]
     paths:
-      - 'infrastructure/**.tf'
       - 'Dockerfile'
       - 'index.html'
 
@@ -14,38 +13,33 @@ permissions:
 
 env:
   AWS_REGION: us-west-2
-  ECR_REPOSITORY: kadai-app-repo
+  ECR_REPOSITORY: handson-app
   AWS_ACCOUNT_ID: "463470960192"
 
 jobs:
-  apply-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ env.AWS_REGION }}
-
-      - uses: hashicorp/setup-terraform@v3
-      - name: Terraform Apply
-        working-directory: infrastructure
-        run: |
-          terraform init -upgrade
-          terraform apply -auto-approve
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and Push Docker
+      - name: Build and push Docker image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "Image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
       - name: Deploy to EC2 via SSM
         run: |
@@ -53,10 +47,11 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --targets "Key=tag:Name,Values=tf-handson-web-server" \
             --region ${{ env.AWS_REGION }} \
+            --comment "Deploying latest Docker image" \
             --parameters 'commands=[
               "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com",
-              "docker pull ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest",
               "docker stop app || true",
               "docker rm app || true",
+              "docker pull ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest",
               "docker run -d -p 80:80 --name app ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest"
             ]'
