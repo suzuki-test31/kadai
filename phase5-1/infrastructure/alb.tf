@@ -17,10 +17,11 @@ resource "aws_lb" "handson" {
 # Target Group
 #================================================
 resource "aws_lb_target_group" "handson" {
-  name     = "handson-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.handson.id
+  name        = "handson-tg"
+  port        = 80
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.handson.id
+  target_type = "ip"
 
   health_check {
     path = "/"
@@ -46,16 +47,5 @@ resource "aws_lb_listener" "handson" {
 }
 
 #================================================
-# Target Group Attachment
+# Target Group Attachment (ECS Fargateでは不要、サービスで自動登録)
 #================================================
-resource "aws_lb_target_group_attachment" "web_a" {
-  target_group_arn = aws_lb_target_group.handson.arn
-  target_id        = aws_instance.web_a.id
-  port             = 80
-}
-
-resource "aws_lb_target_group_attachment" "web_b" {
-  target_group_arn = aws_lb_target_group.handson.arn
-  target_id        = aws_instance.web_b.id
-  port             = 80
-}

@@ -1,61 +1,28 @@
-name: Terraform Apply & Deploy
+name: Deploy ECS
 
 on:
   push:
-    branches: 
-      - main
-    paths:
-      - 'infrastructure/**'
-      - 'app/**'
-  pull_request:
     branches: [main]
     paths:
-      - 'infrastructure/**'
       - 'app/**'
+  workflow_dispatch: # 手動実行も可能
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REPOSITORY: kadai-app-repo
+  ECS_CLUSTER: handson-cluster
+  ECS_SERVICE: handson-service
+  CONTAINER_NAME: nginx
 
 permissions:
   id-token: write
   contents: read
 
-env:
-  AWS_REGION: us-west-2
-  ECR_REPOSITORY: kadai-app-repo
-  AWS_ACCOUNT_ID: "463470960192"
-  ECS_CLUSTER: handson-cluster
-  ECS_SERVICE: handson-service
-  CONTAINER_NAME: nginx
-
 jobs:
-  terraform-apply:
-    if: contains(github.event.head_commit.modified, 'infrastructure/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Apply
-        working-directory: infrastructure
-        run: |
-          rm -rf .terraform
-          rm -f .terraform.lock.hcl
-          terraform init -upgrade
-          terraform apply -auto-approve
-
   deploy:
-    if: contains(github.event.head_commit.modified, 'app/') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
@@ -69,7 +36,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker image
+      - name: Build, tag, and push image to Amazon ECR
         id: build
         run: |
           IMAGE_TAG=${{ github.sha }}

@@ -25,9 +25,9 @@ resource "aws_security_group" "alb" {
   }
 }
 
-resource "aws_security_group" "web" {
-  name        = "web-sg"
-  description = "for web"
+resource "aws_security_group" "ecs" {
+  name        = "ecs-sg"
+  description = "for ecs"
   vpc_id      = aws_vpc.handson.id
 
   ingress {
@@ -45,7 +45,7 @@ resource "aws_security_group" "web" {
   }
 
   tags = {
-    Name = "web-sg"
+    Name = "ecs-sg"
   }
 }
 
@@ -58,7 +58,7 @@ resource "aws_security_group" "db" {
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
-    security_groups = [aws_security_group.web.id]
+    security_groups = [aws_security_group.ecs.id]
   }
 
   egress {
